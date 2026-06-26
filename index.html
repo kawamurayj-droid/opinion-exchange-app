@@ -143,14 +143,14 @@
 
   <!-- ログイン -->
   <div class="card" id="login-card">
-    <h2>① はじめに氏名・学籍番号を入力</h2>
+    <h2>① はじめに学籍番号・氏名を入力</h2>
     <div class="field-row">
-      <label for="student-name">氏名（フルネーム）</label>
-      <input type="text" id="student-name" placeholder="例：山田太郎" autocomplete="off">
-    </div>
-    <div class="field-row" style="margin-top:-4px;">
       <label for="student-id">学籍番号</label>
       <input type="text" id="student-id" placeholder="例：1234567" autocomplete="off">
+    </div>
+    <div class="field-row" style="margin-top:-4px;">
+      <label for="student-name">氏名（フルネーム）</label>
+      <input type="text" id="student-name" placeholder="例：山田太郎" autocomplete="off">
     </div>
     <button id="login-btn">はじめる</button>
   </div>
@@ -182,6 +182,13 @@
     <button id="refresh-btn" class="secondary">最新の状態を確認する</button>
     <p class="small-note">先生が配信を行うと、このボタンを押すことでコメント画面に切り替わります（自動では切り替わりません）。</p>
   </div>
+
+  <!-- あなたの意見に届いたコメント -->
+  <div class="card hidden" id="received-card">
+    <h2>あなたの意見に届いたコメント</h2>
+    <div id="received-list"></div>
+    <p class="small-note" id="received-empty-note"></p>
+  </div>
 </div>
 
 <!-- Firebase SDK -->
@@ -212,6 +219,7 @@ const els = {
   opinionCard: document.getElementById('opinion-card'),
   commentCard: document.getElementById('comment-card'),
   waitingCard: document.getElementById('waiting-card'),
+  receivedCard: document.getElementById('received-card'),
   themeTitleSub: document.getElementById('theme-title-sub'),
   themeTextDisplay: document.getElementById('theme-text-display'),
 };
@@ -276,9 +284,11 @@ function routeByStatus(theme) {
   // 自分の意見提出済みか確認
   db.ref(`opinions/${currentThemeId}/${myKey}`).once('value').then(oppSnap => {
     const hasSubmittedOpinion = oppSnap.exists();
+    const showReceived = hasSubmittedOpinion && (theme.status === 'distributed' || theme.status === 'closed');
 
     if (theme.status === 'open' && !hasSubmittedOpinion) {
       els.opinionCard.classList.remove('hidden');
+      els.receivedCard.classList.add('hidden');
       return;
     }
     if (theme.status === 'open' && hasSubmittedOpinion) {
@@ -287,13 +297,46 @@ function routeByStatus(theme) {
     }
     if (theme.status === 'distributed') {
       checkAssignmentAndShowComments();
+      if (showReceived) loadReceivedComments();
       return;
     }
     if (theme.status === 'closed') {
       showWaiting('このテーマは終了しました。');
+      if (showReceived) loadReceivedComments();
       return;
     }
     showWaiting('状況を確認しています。');
+  });
+}
+
+function loadReceivedComments() {
+  // comments/{themeId} 全体を読み、自分（myKey）が対象になっているものだけ抜き出す
+  db.ref(`comments/${currentThemeId}`).once('value').then(snap => {
+    const all = snap.val() || {};
+    const received = [];
+    Object.keys(all).forEach(commenterKey => {
+      const targets = all[commenterKey] || {};
+      if (targets[myKey]) {
+        received.push(targets[myKey]);
+      }
+    });
+
+    els.receivedCard.classList.remove('hidden');
+    const list = document.getElementById('received-list');
+    const emptyNote = document.getElementById('received-empty-note');
+
+    if (received.length === 0) {
+      list.innerHTML = '';
+      emptyNote.textContent = 'まだコメントは届いていません。「最新の状態を確認する」で再確認できます。';
+      return;
+    }
+    emptyNote.textContent = '';
+    list.innerHTML = received.map(c => `
+      <div class="opinion-block">
+        <div>${escapeHtml(c.commentText)}</div>
+        <div class="comment-author">提出者：${escapeHtml(c.commenterName)}</div>
+      </div>
+    `).join('');
   });
 }
 
@@ -306,6 +349,7 @@ function showWaiting(msg) {
 
 document.getElementById('refresh-btn').addEventListener('click', () => {
   els.waitingCard.classList.add('hidden');
+  els.receivedCard.classList.add('hidden');
   loadCurrentTheme();
 });
 
