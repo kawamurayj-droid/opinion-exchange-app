@@ -143,16 +143,16 @@
 
   <!-- ログイン -->
   <div class="card" id="login-card">
-    <h2>① はじめに氏名を入力</h2>
+    <h2>① はじめに氏名・学籍番号を入力</h2>
     <div class="field-row">
       <label for="student-name">氏名（フルネーム）</label>
       <input type="text" id="student-name" placeholder="例：山田太郎" autocomplete="off">
     </div>
-    <button id="login-btn">はじめる</button>
-    <p class="small-note">同姓同名がいる場合に備えて、学籍番号も合わせて入力すると確実です（任意）。</p>
-    <div class="field-row" style="margin-top:10px;">
-      <input type="text" id="student-id" placeholder="学籍番号（任意）" autocomplete="off">
+    <div class="field-row" style="margin-top:-4px;">
+      <label for="student-id">学籍番号</label>
+      <input type="text" id="student-id" placeholder="例：1234567" autocomplete="off">
     </div>
+    <button id="login-btn">はじめる</button>
   </div>
 
   <!-- 意見投稿 -->
@@ -179,6 +179,8 @@
   <div class="card hidden" id="waiting-card">
     <h2>お疲れさまでした</h2>
     <p id="waiting-message" style="color:var(--muted);"></p>
+    <button id="refresh-btn" class="secondary">最新の状態を確認する</button>
+    <p class="small-note">先生が配信を行うと、このボタンを押すことでコメント画面に切り替わります（自動では切り替わりません）。</p>
   </div>
 </div>
 
@@ -189,10 +191,10 @@
 <script>
 /* ===== ここを自分のFirebaseプロジェクトの値に置き換えてください ===== */
 const firebaseConfig = {
-  apiKey: "AIzaSyBWIsFaEkcM-mrfpuMirs2klEr-1S4QEcM",
-  authDomain: "opinion-exchange-app-54232.firebaseapp.com",
-  databaseURL: "https://opinion-exchange-app-54232-default-rtdb.firebaseio.com",
-  projectId: "opinion-exchange-app-54232",
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT",
 };
 /* ================================================================ */
 
@@ -215,9 +217,8 @@ const els = {
 };
 
 function makeKey(name, sid) {
-  // 学籍番号があればそれを優先キーに、なければ氏名をそのままキー化
-  const base = sid && sid.trim() ? sid.trim() : name.trim();
-  return base.replace(/[.#$\[\]/]/g, '_');
+  // 学籍番号は必須項目なので、それをキーにする
+  return sid.trim().replace(/[.#$\[\]/]/g, '_');
 }
 
 document.getElementById('login-btn').addEventListener('click', () => {
@@ -225,6 +226,10 @@ document.getElementById('login-btn').addEventListener('click', () => {
   const sid = document.getElementById('student-id').value.trim();
   if (!name) {
     alert('氏名を入力してください');
+    return;
+  }
+  if (!sid) {
+    alert('学籍番号を入力してください');
     return;
   }
   myName = name;
@@ -293,9 +298,16 @@ function routeByStatus(theme) {
 }
 
 function showWaiting(msg) {
+  els.opinionCard.classList.add('hidden');
+  els.commentCard.classList.add('hidden');
   els.waitingCard.classList.remove('hidden');
   document.getElementById('waiting-message').textContent = msg;
 }
+
+document.getElementById('refresh-btn').addEventListener('click', () => {
+  els.waitingCard.classList.add('hidden');
+  loadCurrentTheme();
+});
 
 document.getElementById('submit-opinion-btn').addEventListener('click', () => {
   const text = document.getElementById('opinion-text').value.trim();
