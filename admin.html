@@ -101,14 +101,14 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <script>
-/* ===== index.htmlと同じ値に置き換えてください ===== */
+/* ===== Firebaseプロジェクトの設定値 ===== */
 const firebaseConfig = {
   apiKey: "AIzaSyBWIsFaEkcM-mrfpuMirs2klEr-1S4QEcM",
   authDomain: "opinion-exchange-app-54232.firebaseapp.com",
   databaseURL: "https://opinion-exchange-app-54232-default-rtdb.firebaseio.com",
   projectId: "opinion-exchange-app-54232",
 };
-/* =================================================== */
+/* ======================================== */
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
@@ -194,6 +194,7 @@ function renderCurrentThemeBox(themeId, theme) {
       <div class="row" style="margin-top:16px;">
         ${theme.status === 'open' ? `<button id="distribute-btn">配信を実行する（${oppCount}件の意見を1人${theme.assignCount}件ずつ配信）</button>` : ''}
         ${theme.status === 'distributed' ? `<button id="close-btn" class="danger">このテーマを終了する</button>` : ''}
+        ${oppCount > 0 ? `<button id="export-current-btn" class="secondary">CSVをダウンロード</button>` : ''}
       </div>
       <p class="small-note" id="distribute-note"></p>
     `;
@@ -209,6 +210,11 @@ function renderCurrentThemeBox(themeId, theme) {
           log('テーマを終了しました。');
           loadCurrentTheme(); loadThemeList();
         });
+      });
+    }
+    if (oppCount > 0) {
+      document.getElementById('export-current-btn').addEventListener('click', () => {
+        exportThemeCSV(themeId, theme);
       });
     }
   });
@@ -265,9 +271,140 @@ function loadThemeList() {
     }
     list.innerHTML = ids.map(id => {
       const t = all[id];
-      return `<div class="theme-item"><span>${escapeHtml(t.title)}</span>${statusBadge(t.status)}</div>`;
+      return `<div class="theme-item">
+        <span>${escapeHtml(t.title)}</span>
+        <span style="display:flex; align-items:center; gap:10px;">
+          ${statusBadge(t.status)}
+          <button class="secondary export-btn" data-theme-id="${id}" style="padding:6px 12px; font-size:0.78rem;">CSV</button>
+          <button class="danger delete-btn" data-theme-id="${id}" style="padding:6px 12px; font-size:0.78rem;">削除</button>
+        </span>
+      </div>`;
     }).join('');
+
+    list.querySelectorAll('.export-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-theme-id');
+        exportThemeCSV(id, all[id]);
+      });
+    });
+    list.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-theme-id');
+        deleteTheme(id, all[id]);
+      });
+    });
   });
+}
+
+// ===== テーマ削除 =====
+function deleteTheme(themeId, theme) {
+  const title = theme ? theme.title : themeId;
+  if (!confirm(`「${title}」を削除します。意見・コメントのデータもすべて削除され、元に戻せません。本当に削除しますか？`)) {
+    return;
+  }
+  const updates = {};
+  updates[`themes/list/${themeId}`] = null;
+  updates[`opinions/${themeId}`] = null;
+  updates[`assignments/${themeId}`] = null;
+  updates[`comments/${themeId}`] = null;
+
+  db.ref().update(updates).then(() => {
+    return db.ref('themes/current').once('value');
+  }).then(snap => {
+    if (snap.val() === themeId) {
+      return db.ref('themes/current').set(null);
+    }
+  }).then(() => {
+    log('テーマを削除しました。');
+    loadCurrentTheme();
+    loadThemeList();
+  }).catch(err => alert('削除に失敗しました：' + err.message));
+}
+
+// ===== CSVエクスポート =====
+function exportThemeCSV(themeId, theme) {
+  Promise.all([
+    db.ref('opinions/' + themeId).once('value'),
+    db.ref('comments/' + themeId).once('value')
+  ]).then(([oppSnap, cmtSnap]) => {
+    const opinions = oppSnap.val() || {};
+    const comments = cmtSnap.val() || {};
+
+    // 意見一覧CSV
+    const opinionRows = Object.keys(opinions).map(key => {
+      const o = opinions[key];
+      return [o.studentId || key, o.name || '', o.text || '', formatTs(o.submittedAt)];
+    });
+    downloadCSV(
+      sanitizeFilename(theme.title) + '_意見一覧.csv',
+      toCSV(['学籍番号', '氏名', '意見内容', '提出日時'], opinionRows)
+    );
+
+    // コメント一覧CSV（対象意見の提出者情報も付与）
+    const commentRows = [];
+    Object.keys(comments).forEach(commenterKey => {
+      const perTarget = comments[commenterKey] || {};
+      Object.keys(perTarget).forEach(targetKey => {
+        const c = perTarget[targetKey];
+        const targetOpinion = opinions[targetKey] || {};
+        commentRows.push([
+          c.commenterStudentId || commenterKey,
+          c.commenterName || '',
+          targetOpinion.studentId || targetKey,
+          targetOpinion.name || '',
+          c.commentText || '',
+          formatTs(c.submittedAt)
+        ]);
+      });
+    });
+    // 少し時間をずらして2つ目のダウンロードを発火（ブラウザのポップアップブロック対策）
+    setTimeout(() => {
+      downloadCSV(
+        sanitizeFilename(theme.title) + '_コメント一覧.csv',
+        toCSV(['コメント記載者学籍番号', 'コメント記載者氏名', '対象学籍番号', '対象氏名', 'コメント内容', '提出日時'], commentRows)
+      );
+    }, 300);
+
+    log('CSVをダウンロードしました。');
+  }).catch(err => alert('CSV出力に失敗しました：' + err.message));
+}
+
+function formatTs(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function sanitizeFilename(name) {
+  return (name || 'theme').replace(/[\\/:*?"<>|]/g, '_').slice(0, 40);
+}
+
+function csvEscape(val) {
+  const s = String(val ?? '');
+  if (/[",\n]/.test(s)) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function toCSV(headers, rows) {
+  const lines = [headers.map(csvEscape).join(',')];
+  rows.forEach(row => lines.push(row.map(csvEscape).join(',')));
+  return lines.join('\r\n');
+}
+
+function downloadCSV(filename, content) {
+  // ExcelでもExcelで文字化けしないようUTF-8 BOM付きで出力
+  const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function escapeHtml(str) {
