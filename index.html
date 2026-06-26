@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>意見交換アプリ</title>
+<style>
+  :root {
+    --bg: #f7f5f2;
+    --ink: #2b2a28;
+    --accent: #b5573e;
+    --accent-soft: #f1ddd5;
+    --line: #ddd6cd;
+    --card-bg: #ffffff;
+    --muted: #79746c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.7;
+  }
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+  }
+  header {
+    padding: 28px 0 18px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 24px;
+  }
+  header h1 {
+    font-size: 1.4rem;
+    margin: 0 0 4px;
+    letter-spacing: 0.02em;
+  }
+  header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 22px;
+    margin-bottom: 18px;
+  }
+  .card h2 {
+    font-size: 1.05rem;
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .badge {
+    display: inline-block;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 999px;
+  }
+  label {
+    display: block;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  input[type="text"], textarea {
+    width: 100%;
+    font-size: 1rem;
+    padding: 11px 12px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fdfcfb;
+    font-family: inherit;
+    color: var(--ink);
+  }
+  textarea { resize: vertical; min-height: 90px; }
+  input:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  button {
+    background: var(--ink);
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    padding: 12px 22px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  button:hover { background: var(--accent); }
+  button:disabled { background: #c9c4bc; cursor: not-allowed; }
+  button.secondary {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--line);
+  }
+  button.secondary:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .opinion-block {
+    border-left: 3px solid var(--accent);
+    padding: 12px 14px;
+    background: #fbf7f4;
+    border-radius: 0 7px 7px 0;
+    margin-bottom: 12px;
+    font-size: 0.96rem;
+  }
+  .comment-author {
+    text-align: right;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+  .status-msg {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-top: 10px;
+  }
+  .done-mark {
+    color: #4a7a4a;
+    font-weight: 600;
+  }
+  .hidden { display: none !important; }
+  .field-row { margin-bottom: 16px; }
+  .small-note { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>意見交換アプリ</h1>
+    <p id="theme-title-sub">テーマを読み込み中…</p>
+  </header>
+
+  <!-- ログイン -->
+  <div class="card" id="login-card">
+    <h2>① はじめに氏名を入力</h2>
+    <div class="field-row">
+      <label for="student-name">氏名（フルネーム）</label>
+      <input type="text" id="student-name" placeholder="例：山田太郎" autocomplete="off">
+    </div>
+    <button id="login-btn">はじめる</button>
+    <p class="small-note">同姓同名がいる場合に備えて、学籍番号も合わせて入力すると確実です（任意）。</p>
+    <div class="field-row" style="margin-top:10px;">
+      <input type="text" id="student-id" placeholder="学籍番号（任意）" autocomplete="off">
+    </div>
+  </div>
+
+  <!-- 意見投稿 -->
+  <div class="card hidden" id="opinion-card">
+    <h2><span class="badge">STEP 1</span>意見を提出する</h2>
+    <p id="theme-text-display" style="color:var(--muted); font-size:0.9rem;"></p>
+    <div class="field-row">
+      <textarea id="opinion-text" placeholder="あなたの考えを入力してください"></textarea>
+    </div>
+    <button id="submit-opinion-btn">提出する</button>
+    <p class="status-msg" id="opinion-status"></p>
+  </div>
+
+  <!-- コメント -->
+  <div class="card hidden" id="comment-card">
+    <h2><span class="badge">STEP 2</span>配信された意見にコメントする</h2>
+    <p style="color:var(--muted); font-size:0.85rem;">他の人の意見が下に表示されます。それぞれにコメントを書いて提出してください（あなたの名前はコメントに表示されます）。</p>
+    <div id="comment-list"></div>
+    <button id="submit-comments-btn">すべてのコメントを提出する</button>
+    <p class="status-msg" id="comment-status"></p>
+  </div>
+
+  <!-- 待機/完了 -->
+  <div class="card hidden" id="waiting-card">
+    <h2>お疲れさまでした</h2>
+    <p id="waiting-message" style="color:var(--muted);"></p>
+  </div>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<script>
+/* ===== ここを自分のFirebaseプロジェクトの値に置き換えてください ===== */
+const firebaseConfig = {
+  apiKey: "AIzaSyBWIsFaEkcM-mrfpuMirs2klEr-1S4QEcM",
+  authDomain: "opinion-exchange-app-54232.firebaseapp.com",
+  databaseURL: "https://opinion-exchange-app-54232-default-rtdb.firebaseio.com",
+  projectId: "opinion-exchange-app-54232",
+};
+/* ================================================================ */
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// 現在開催中のテーマID（admin.html側で themes/current に設定する想定）
+let currentThemeId = null;
+let myKey = null; // 氏名＋学籍番号から作る一意キー
+let myName = "";
+let myStudentId = "";
+
+const els = {
+  loginCard: document.getElementById('login-card'),
+  opinionCard: document.getElementById('opinion-card'),
+  commentCard: document.getElementById('comment-card'),
+  waitingCard: document.getElementById('waiting-card'),
+  themeTitleSub: document.getElementById('theme-title-sub'),
+  themeTextDisplay: document.getElementById('theme-text-display'),
+};
+
+function makeKey(name, sid) {
+  // 学籍番号があればそれを優先キーに、なければ氏名をそのままキー化
+  const base = sid && sid.trim() ? sid.trim() : name.trim();
+  return base.replace(/[.#$\[\]/]/g, '_');
+}
+
+document.getElementById('login-btn').addEventListener('click', () => {
+  const name = document.getElementById('student-name').value.trim();
+  const sid = document.getElementById('student-id').value.trim();
+  if (!name) {
+    alert('氏名を入力してください');
+    return;
+  }
+  myName = name;
+  myStudentId = sid;
+  myKey = makeKey(name, sid);
+  sessionStorage.setItem('opinionapp_name', myName);
+  sessionStorage.setItem('opinionapp_sid', myStudentId);
+  sessionStorage.setItem('opinionapp_key', myKey);
+  els.loginCard.classList.add('hidden');
+  loadCurrentTheme();
+});
+
+// セッション復元（同じ端末・タブで再読込した場合）
+window.addEventListener('DOMContentLoaded', () => {
+  const savedKey = sessionStorage.getItem('opinionapp_key');
+  if (savedKey) {
+    myName = sessionStorage.getItem('opinionapp_name') || '';
+    myStudentId = sessionStorage.getItem('opinionapp_sid') || '';
+    myKey = savedKey;
+    els.loginCard.classList.add('hidden');
+    loadCurrentTheme();
+  }
+});
+
+function loadCurrentTheme() {
+  db.ref('themes/current').once('value').then(snap => {
+    const themeId = snap.val();
+    if (!themeId) {
+      els.themeTitleSub.textContent = '現在、進行中のテーマはありません。';
+      return;
+    }
+    currentThemeId = themeId;
+    db.ref('themes/list/' + themeId).once('value').then(themeSnap => {
+      const theme = themeSnap.val();
+      if (!theme) return;
+      els.themeTitleSub.textContent = theme.title;
+      els.themeTextDisplay.textContent = theme.title;
+      routeByStatus(theme);
+    });
+  });
+}
+
+function routeByStatus(theme) {
+  // 自分の意見提出済みか確認
+  db.ref(`opinions/${currentThemeId}/${myKey}`).once('value').then(oppSnap => {
+    const hasSubmittedOpinion = oppSnap.exists();
+
+    if (theme.status === 'open' && !hasSubmittedOpinion) {
+      els.opinionCard.classList.remove('hidden');
+      return;
+    }
+    if (theme.status === 'open' && hasSubmittedOpinion) {
+      showWaiting('意見を提出済みです。配信が開始されるまでお待ちください。');
+      return;
+    }
+    if (theme.status === 'distributed') {
+      checkAssignmentAndShowComments();
+      return;
+    }
+    if (theme.status === 'closed') {
+      showWaiting('このテーマは終了しました。');
+      return;
+    }
+    showWaiting('状況を確認しています。');
+  });
+}
+
+function showWaiting(msg) {
+  els.waitingCard.classList.remove('hidden');
+  document.getElementById('waiting-message').textContent = msg;
+}
+
+document.getElementById('submit-opinion-btn').addEventListener('click', () => {
+  const text = document.getElementById('opinion-text').value.trim();
+  if (!text) { alert('意見を入力してください'); return; }
+  const btn = document.getElementById('submit-opinion-btn');
+  btn.disabled = true;
+  db.ref(`opinions/${currentThemeId}/${myKey}`).set({
+    text: text,
+    name: myName,
+    studentId: myStudentId,
+    submittedAt: firebase.database.ServerValue.TIMESTAMP
+  }).then(() => {
+    document.getElementById('opinion-status').innerHTML = '<span class="done-mark">提出しました。配信開始までお待ちください。</span>';
+    els.opinionCard.classList.add('hidden');
+    showWaiting('意見を提出済みです。配信が開始されるまでお待ちください。');
+  }).catch(err => {
+    alert('提出に失敗しました：' + err.message);
+    btn.disabled = false;
+  });
+});
+
+function checkAssignmentAndShowComments() {
+  db.ref(`assignments/${currentThemeId}/${myKey}`).once('value').then(asgSnap => {
+    const assignment = asgSnap.val();
+    if (!assignment || !assignment.targets) {
+      showWaiting('あなたへの配信がまだありません（意見を提出していない場合は配信対象になりません）。');
+      return;
+    }
+    db.ref(`comments/${currentThemeId}/${myKey}`).once('value').then(cmtSnap => {
+      const existing = cmtSnap.val() || {};
+      const remaining = assignment.targets.filter(t => !existing[t]);
+      if (remaining.length === 0) {
+        showWaiting('コメントを提出済みです。お疲れさまでした。');
+        return;
+      }
+      renderCommentForm(assignment.targets, existing);
+    });
+  });
+}
+
+function renderCommentForm(targetKeys, existing) {
+  els.commentCard.classList.remove('hidden');
+  const list = document.getElementById('comment-list');
+  list.innerHTML = '';
+
+  const fetches = targetKeys.map(tk =>
+    db.ref(`opinions/${currentThemeId}/${tk}`).once('value').then(s => ({ key: tk, opinion: s.val() }))
+  );
+
+  Promise.all(fetches).then(results => {
+    results.forEach((r, idx) => {
+      if (!r.opinion) return;
+      const block = document.createElement('div');
+      block.className = 'opinion-block';
+      const already = existing[r.key];
+      block.innerHTML = `
+        <div style="font-size:0.75rem; color:var(--muted); margin-bottom:6px;">配信された意見 ${idx + 1}（提出者：非公開）</div>
+        <div style="margin-bottom:12px;">${escapeHtml(r.opinion.text)}</div>
+        <label>あなたのコメント</label>
+        <textarea data-target="${r.key}" ${already ? 'disabled' : ''}>${already ? escapeHtml(already.commentText) : ''}</textarea>
+        ${already ? '<div class="comment-author">提出済み・提出者：' + escapeHtml(already.commenterName) + '</div>' : ''}
+      `;
+      list.appendChild(block);
+    });
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+document.getElementById('submit-comments-btn').addEventListener('click', () => {
+  const textareas = document.querySelectorAll('#comment-list textarea:not([disabled])');
+  const updates = {};
+  let emptyFound = false;
+  textareas.forEach(ta => {
+    const val = ta.value.trim();
+    if (!val) { emptyFound = true; return; }
+    const targetKey = ta.getAttribute('data-target');
+    updates[`comments/${currentThemeId}/${myKey}/${targetKey}`] = {
+      commentText: val,
+      commenterName: myName,
+      commenterStudentId: myStudentId,
+      submittedAt: firebase.database.ServerValue.TIMESTAMP
+    };
+  });
+  if (emptyFound) {
+    alert('未入力のコメントがあります。すべて入力してください。');
+    return;
+  }
+  if (Object.keys(updates).length === 0) {
+    showWaiting('コメントを提出済みです。お疲れさまでした。');
+    return;
+  }
+  const btn = document.getElementById('submit-comments-btn');
+  btn.disabled = true;
+  db.ref().update(updates).then(() => {
+    els.commentCard.classList.add('hidden');
+    showWaiting('コメントを提出しました。お疲れさまでした。');
+  }).catch(err => {
+    alert('提出に失敗しました：' + err.message);
+    btn.disabled = false;
+  });
+});
+</script>
+</body>
+</html>
