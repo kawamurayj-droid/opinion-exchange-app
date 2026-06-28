@@ -13,6 +13,7 @@
     --line: #ddd6cd;
     --card-bg: #ffffff;
     --muted: #79746c;
+    --ok: #4a7a4a;
   }
   * { box-sizing: border-box; }
   body {
@@ -27,6 +28,7 @@
     margin: 0 auto;
     padding: 24px 20px 80px;
   }
+  .wrap.admin-wrap { max-width: 760px; }
   header {
     padding: 28px 0 18px;
     border-bottom: 2px solid var(--ink);
@@ -71,7 +73,7 @@
     color: var(--muted);
     margin-bottom: 6px;
   }
-  input[type="text"], textarea {
+  input[type="text"], input[type="password"], textarea, select {
     width: 100%;
     font-size: 1rem;
     padding: 11px 12px;
@@ -106,6 +108,8 @@
     border: 1px solid var(--line);
   }
   button.secondary:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  button.danger { background: #8a3b2a; }
+  button.danger:hover { background: #b5573e; }
   .opinion-block {
     border-left: 3px solid var(--accent);
     padding: 12px 14px;
@@ -132,10 +136,25 @@
   .hidden { display: none !important; }
   .field-row { margin-bottom: 16px; }
   .small-note { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; }
+  .stat { display:flex; gap:20px; flex-wrap:wrap; margin-top:8px; }
+  .stat-box { background: var(--accent-soft); border-radius: 8px; padding: 12px 18px; min-width:120px; }
+  .stat-box .num { font-size:1.6rem; font-weight:700; color: var(--accent); }
+  .stat-box .label { font-size:0.75rem; color: var(--muted); }
+  .badge-status { display:inline-block; font-size:0.72rem; font-weight:700; padding:2px 9px; border-radius:999px; }
+  .badge-open { background:#e3eede; color:#4a7a4a; }
+  .badge-distributed { background:#dde6ee; color:#3a6a9a; }
+  .badge-closed { background:#e8e6e2; color:#79746c; }
+  .theme-item { padding:10px 0; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  #admin-log { font-size: 0.82rem; color: var(--muted); margin-top: 10px; white-space: pre-wrap; }
+  .footer-link { text-align:center; margin-top: 28px; }
+  .footer-link a { font-size: 0.78rem; color: var(--muted); text-decoration: underline; cursor: pointer; }
 </style>
 </head>
 <body>
-<div class="wrap">
+
+<!-- ============ 学生用画面 ============ -->
+<div class="wrap" id="student-app">
   <header>
     <h1>意見交換アプリ</h1>
     <p id="theme-title-sub">テーマを読み込み中…</p>
@@ -148,9 +167,15 @@
       <label for="student-id">学籍番号</label>
       <input type="text" id="student-id" placeholder="例：1234567" autocomplete="off">
     </div>
-    <div class="field-row" style="margin-top:-4px;">
-      <label for="student-name">氏名（フルネーム）</label>
-      <input type="text" id="student-name" placeholder="例：山田太郎" autocomplete="off">
+    <div class="row" style="margin-top:-4px; margin-bottom:16px;">
+      <div style="flex:1;">
+        <label for="student-family-name">姓</label>
+        <input type="text" id="student-family-name" placeholder="例：山田" autocomplete="off">
+      </div>
+      <div style="flex:1;">
+        <label for="student-given-name">名</label>
+        <input type="text" id="student-given-name" placeholder="例：太郎" autocomplete="off">
+      </div>
     </div>
     <button id="login-btn">はじめる</button>
   </div>
@@ -189,6 +214,64 @@
     <div id="received-list"></div>
     <p class="small-note" id="received-empty-note"></p>
   </div>
+
+  <div class="footer-link"><a id="show-teacher-pin-link">教員の方はこちら</a></div>
+</div>
+
+<!-- ============ 教員PIN入力 ============ -->
+<div class="wrap hidden" id="teacher-pin-app">
+  <header>
+    <h1>意見交換アプリ</h1>
+    <p>教員用PINコードを入力してください</p>
+  </header>
+  <div class="card">
+    <div class="field-row">
+      <label for="teacher-pin-input">PINコード</label>
+      <input type="password" id="teacher-pin-input" placeholder="PINコード" autocomplete="off" inputmode="numeric">
+    </div>
+    <div class="row">
+      <button id="teacher-pin-submit">管理画面に入る</button>
+      <button id="teacher-pin-cancel" class="secondary">学生画面に戻る</button>
+    </div>
+    <p class="status-msg" id="teacher-pin-status"></p>
+  </div>
+</div>
+
+<!-- ============ 管理画面 ============ -->
+<div class="wrap admin-wrap hidden" id="admin-app">
+  <header>
+    <h1>意見交換アプリ - 管理画面</h1>
+    <p>テーマの作成・配信の実行・提出状況の確認</p>
+  </header>
+
+  <div class="card">
+    <h2>① 新しいテーマを作成</h2>
+    <div class="field-row">
+      <label for="new-theme-title">テーマ文（学生に表示される問い）</label>
+      <textarea id="new-theme-title" placeholder="例：地域包括ケアにおける住民参加について、あなたの考えを述べてください"></textarea>
+    </div>
+    <div class="field-row">
+      <label for="assign-count">1人あたり配信する意見の件数</label>
+      <select id="assign-count">
+        <option value="2">2件</option>
+        <option value="3" selected>3件</option>
+      </select>
+    </div>
+    <button id="create-theme-btn">テーマを作成して開始（意見募集を開始）</button>
+  </div>
+
+  <div class="card">
+    <h2>② 現在進行中のテーマ</h2>
+    <div id="current-theme-box">読み込み中…</div>
+  </div>
+
+  <div class="card">
+    <h2>③ テーマ一覧</h2>
+    <div id="theme-list">読み込み中…</div>
+  </div>
+
+  <p id="admin-log"></p>
+  <div class="footer-link"><a id="back-to-student-link">学生画面に戻る</a></div>
 </div>
 
 <!-- Firebase SDK -->
@@ -208,9 +291,60 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// 現在開催中のテーマID（admin.html側で themes/current に設定する想定）
+const TEACHER_PIN = "1234";
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+/* ===================================================================
+   画面切り替え（学生 / 教員PIN入力 / 管理画面）
+   =================================================================== */
+const screens = {
+  student: document.getElementById('student-app'),
+  teacherPin: document.getElementById('teacher-pin-app'),
+  admin: document.getElementById('admin-app'),
+};
+
+function showScreen(name) {
+  Object.values(screens).forEach(el => el.classList.add('hidden'));
+  screens[name].classList.remove('hidden');
+}
+
+document.getElementById('show-teacher-pin-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  document.getElementById('teacher-pin-input').value = '';
+  document.getElementById('teacher-pin-status').textContent = '';
+  showScreen('teacherPin');
+});
+
+document.getElementById('teacher-pin-cancel').addEventListener('click', () => {
+  showScreen('student');
+});
+
+document.getElementById('teacher-pin-submit').addEventListener('click', () => {
+  const val = document.getElementById('teacher-pin-input').value.trim();
+  if (val === TEACHER_PIN) {
+    showScreen('admin');
+    adminLoadCurrentTheme();
+    adminLoadThemeList();
+  } else {
+    document.getElementById('teacher-pin-status').textContent = 'PINが正しくありません。';
+  }
+});
+
+document.getElementById('back-to-student-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  showScreen('student');
+});
+
+/* ===================================================================
+   学生用ロジック
+   =================================================================== */
 let currentThemeId = null;
-let myKey = null; // 氏名＋学籍番号から作る一意キー
+let myKey = null;
 let myName = "";
 let myStudentId = "";
 
@@ -225,21 +359,18 @@ const els = {
 };
 
 function makeKey(name, sid) {
-  // 学籍番号は必須項目なので、それをキーにする
   return sid.trim().replace(/[.#$\[\]/]/g, '_');
 }
 
 document.getElementById('login-btn').addEventListener('click', () => {
-  const name = document.getElementById('student-name').value.trim();
+  const familyName = document.getElementById('student-family-name').value.trim();
+  const givenName = document.getElementById('student-given-name').value.trim();
   const sid = document.getElementById('student-id').value.trim();
-  if (!name) {
-    alert('氏名を入力してください');
-    return;
-  }
-  if (!sid) {
-    alert('学籍番号を入力してください');
-    return;
-  }
+  if (!familyName) { alert('姓を入力してください'); return; }
+  if (!givenName) { alert('名を入力してください'); return; }
+  if (!sid) { alert('学籍番号を入力してください'); return; }
+  // 姓・名の間は常に全角スペース1つで統一する（半角/全角や有無のばらつきを防止）
+  const name = familyName + '\u3000' + givenName;
   myName = name;
   myStudentId = sid;
   myKey = makeKey(name, sid);
@@ -250,7 +381,6 @@ document.getElementById('login-btn').addEventListener('click', () => {
   loadCurrentTheme();
 });
 
-// セッション復元（同じ端末・タブで再読込した場合）
 window.addEventListener('DOMContentLoaded', () => {
   const savedKey = sessionStorage.getItem('opinionapp_key');
   if (savedKey) {
@@ -281,7 +411,6 @@ function loadCurrentTheme() {
 }
 
 function routeByStatus(theme) {
-  // 自分の意見提出済みか確認
   db.ref(`opinions/${currentThemeId}/${myKey}`).once('value').then(oppSnap => {
     const hasSubmittedOpinion = oppSnap.exists();
     const showReceived = hasSubmittedOpinion && (theme.status === 'distributed' || theme.status === 'closed');
@@ -310,15 +439,12 @@ function routeByStatus(theme) {
 }
 
 function loadReceivedComments() {
-  // comments/{themeId} 全体を読み、自分（myKey）が対象になっているものだけ抜き出す
   db.ref(`comments/${currentThemeId}`).once('value').then(snap => {
     const all = snap.val() || {};
     const received = [];
     Object.keys(all).forEach(commenterKey => {
       const targets = all[commenterKey] || {};
-      if (targets[myKey]) {
-        received.push(targets[myKey]);
-      }
+      if (targets[myKey]) { received.push(targets[myKey]); }
     });
 
     els.receivedCard.classList.remove('hidden');
@@ -419,12 +545,6 @@ function renderCommentForm(targetKeys, existing) {
   });
 }
 
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
-
 document.getElementById('submit-comments-btn').addEventListener('click', () => {
   const textareas = document.querySelectorAll('#comment-list textarea:not([disabled])');
   const updates = {};
@@ -440,10 +560,7 @@ document.getElementById('submit-comments-btn').addEventListener('click', () => {
       submittedAt: firebase.database.ServerValue.TIMESTAMP
     };
   });
-  if (emptyFound) {
-    alert('未入力のコメントがあります。すべて入力してください。');
-    return;
-  }
+  if (emptyFound) { alert('未入力のコメントがあります。すべて入力してください。'); return; }
   if (Object.keys(updates).length === 0) {
     showWaiting('コメントを提出済みです。お疲れさまでした。');
     return;
@@ -458,6 +575,291 @@ document.getElementById('submit-comments-btn').addEventListener('click', () => {
     btn.disabled = false;
   });
 });
+
+/* ===================================================================
+   管理画面ロジック（admin* というプレフィックスで学生側と名前の衝突を回避）
+   =================================================================== */
+function adminLog(msg) {
+  document.getElementById('admin-log').textContent = msg;
+}
+
+function adminGenThemeId() {
+  return 'theme_' + Date.now();
+}
+
+document.getElementById('create-theme-btn').addEventListener('click', () => {
+  const title = document.getElementById('new-theme-title').value.trim();
+  if (!title) { alert('テーマ文を入力してください'); return; }
+  const assignCount = parseInt(document.getElementById('assign-count').value, 10);
+
+  const themeId = adminGenThemeId();
+  const theme = {
+    title,
+    assignCount,
+    status: 'open',
+    createdAt: firebase.database.ServerValue.TIMESTAMP
+  };
+
+  db.ref('themes/list/' + themeId).set(theme)
+    .then(() => db.ref('themes/current').set(themeId))
+    .then(() => {
+      document.getElementById('new-theme-title').value = '';
+      adminLog('テーマを作成し、意見募集を開始しました。');
+      adminLoadThemeList();
+      adminLoadCurrentTheme();
+    })
+    .catch(err => alert('作成に失敗しました：' + err.message));
+});
+
+function adminLoadCurrentTheme() {
+  db.ref('themes/current').once('value').then(snap => {
+    const themeId = snap.val();
+    const box = document.getElementById('current-theme-box');
+    if (!themeId) {
+      box.innerHTML = '<p class="small-note">現在進行中のテーマはありません。</p>';
+      return;
+    }
+    db.ref('themes/list/' + themeId).once('value').then(themeSnap => {
+      const theme = themeSnap.val();
+      adminRenderCurrentThemeBox(themeId, theme);
+    });
+  });
+}
+
+function adminStatusBadge(status) {
+  if (status === 'open') return '<span class="badge-status badge-open">意見募集中</span>';
+  if (status === 'distributed') return '<span class="badge-status badge-distributed">配信済み・コメント受付中</span>';
+  return '<span class="badge-status badge-closed">終了</span>';
+}
+
+function adminRenderCurrentThemeBox(themeId, theme) {
+  const box = document.getElementById('current-theme-box');
+  if (!theme) { box.innerHTML = '<p class="small-note">テーマが見つかりません。</p>'; return; }
+
+  Promise.all([
+    db.ref('opinions/' + themeId).once('value'),
+    db.ref('comments/' + themeId).once('value')
+  ]).then(([oppSnap, cmtSnap]) => {
+    const opinions = oppSnap.val() || {};
+    const oppCount = Object.keys(opinions).length;
+
+    const comments = cmtSnap.val() || {};
+    let commentTotal = 0;
+    Object.values(comments).forEach(perStudent => {
+      commentTotal += Object.keys(perStudent).length;
+    });
+    const expectedComments = theme.status === 'distributed' || theme.status === 'closed'
+      ? oppCount * theme.assignCount : null;
+
+    box.innerHTML = `
+      <p><strong>${escapeHtml(theme.title)}</strong> ${adminStatusBadge(theme.status)}</p>
+      <div class="stat">
+        <div class="stat-box"><div class="num">${oppCount}</div><div class="label">意見の提出数</div></div>
+        <div class="stat-box"><div class="num">${commentTotal}${expectedComments !== null ? ' / ' + expectedComments : ''}</div><div class="label">コメント提出数</div></div>
+      </div>
+      <div class="row" style="margin-top:16px;">
+        ${theme.status === 'open' ? `<button id="distribute-btn">配信を実行する（${oppCount}件の意見を1人${theme.assignCount}件ずつ配信）</button>` : ''}
+        ${theme.status === 'distributed' ? `<button id="close-btn" class="danger">このテーマを終了する</button>` : ''}
+        ${oppCount > 0 ? `<button id="export-current-btn" class="secondary">CSVをダウンロード</button>` : ''}
+      </div>
+      <p class="small-note" id="distribute-note"></p>
+    `;
+
+    if (theme.status === 'open') {
+      document.getElementById('distribute-btn').addEventListener('click', () => {
+        adminRunDistribution(themeId, theme, opinions);
+      });
+    }
+    if (theme.status === 'distributed') {
+      document.getElementById('close-btn').addEventListener('click', () => {
+        db.ref('themes/list/' + themeId + '/status').set('closed').then(() => {
+          adminLog('テーマを終了しました。');
+          adminLoadCurrentTheme(); adminLoadThemeList();
+        });
+      });
+    }
+    if (oppCount > 0) {
+      document.getElementById('export-current-btn').addEventListener('click', () => {
+        adminExportThemeCSV(themeId, theme);
+      });
+    }
+  });
+}
+
+function adminRunDistribution(themeId, theme, opinions) {
+  const keys = Object.keys(opinions);
+  const n = keys.length;
+  const assignCount = theme.assignCount;
+
+  if (n < assignCount + 1) {
+    alert(`配信には最低 ${assignCount + 1} 人分の意見が必要です（現在 ${n} 件）。`);
+    return;
+  }
+
+  const shuffled = [...keys];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  const updates = {};
+  for (let i = 0; i < n; i++) {
+    const targets = [];
+    for (let offset = 1; offset <= assignCount; offset++) {
+      targets.push(shuffled[(i + offset) % n]);
+    }
+    const studentKey = shuffled[i];
+    updates[`assignments/${themeId}/${studentKey}`] = { targets };
+  }
+  updates[`themes/list/${themeId}/status`] = 'distributed';
+  updates[`themes/list/${themeId}/distributedAt`] = firebase.database.ServerValue.TIMESTAMP;
+
+  document.getElementById('distribute-note').textContent = '配信を実行中…';
+  db.ref().update(updates).then(() => {
+    adminLog(`配信を実行しました（${n}人 × ${assignCount}件）。`);
+    adminLoadCurrentTheme();
+    adminLoadThemeList();
+  }).catch(err => alert('配信に失敗しました：' + err.message));
+}
+
+function adminLoadThemeList() {
+  db.ref('themes/list').once('value').then(snap => {
+    const all = snap.val() || {};
+    const list = document.getElementById('theme-list');
+    const ids = Object.keys(all).sort((a, b) => (all[b].createdAt || 0) - (all[a].createdAt || 0));
+    if (ids.length === 0) {
+      list.innerHTML = '<p class="small-note">まだテーマがありません。</p>';
+      return;
+    }
+    list.innerHTML = ids.map(id => {
+      const t = all[id];
+      return `<div class="theme-item">
+        <span>${escapeHtml(t.title)}</span>
+        <span style="display:flex; align-items:center; gap:10px;">
+          ${adminStatusBadge(t.status)}
+          <button class="secondary export-btn" data-theme-id="${id}" style="padding:6px 12px; font-size:0.78rem;">CSV</button>
+          <button class="danger delete-btn" data-theme-id="${id}" style="padding:6px 12px; font-size:0.78rem;">削除</button>
+        </span>
+      </div>`;
+    }).join('');
+
+    list.querySelectorAll('.export-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-theme-id');
+        adminExportThemeCSV(id, all[id]);
+      });
+    });
+    list.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-theme-id');
+        adminDeleteTheme(id, all[id]);
+      });
+    });
+  });
+}
+
+function adminDeleteTheme(themeId, theme) {
+  const title = theme ? theme.title : themeId;
+  if (!confirm(`「${title}」を削除します。意見・コメントのデータもすべて削除され、元に戻せません。本当に削除しますか？`)) {
+    return;
+  }
+  const updates = {};
+  updates[`themes/list/${themeId}`] = null;
+  updates[`opinions/${themeId}`] = null;
+  updates[`assignments/${themeId}`] = null;
+  updates[`comments/${themeId}`] = null;
+
+  db.ref().update(updates).then(() => {
+    return db.ref('themes/current').once('value');
+  }).then(snap => {
+    if (snap.val() === themeId) {
+      return db.ref('themes/current').set(null);
+    }
+  }).then(() => {
+    adminLog('テーマを削除しました。');
+    adminLoadCurrentTheme();
+    adminLoadThemeList();
+  }).catch(err => alert('削除に失敗しました：' + err.message));
+}
+
+function adminExportThemeCSV(themeId, theme) {
+  Promise.all([
+    db.ref('opinions/' + themeId).once('value'),
+    db.ref('comments/' + themeId).once('value')
+  ]).then(([oppSnap, cmtSnap]) => {
+    const opinions = oppSnap.val() || {};
+    const comments = cmtSnap.val() || {};
+
+    const opinionRows = Object.keys(opinions).map(key => {
+      const o = opinions[key];
+      return [o.studentId || key, o.name || '', o.text || '', adminFormatTs(o.submittedAt)];
+    });
+    adminDownloadCSV(
+      adminSanitizeFilename(theme.title) + '_意見一覧.csv',
+      adminToCSV(['学籍番号', '氏名', '意見内容', '提出日時'], opinionRows)
+    );
+
+    const commentRows = [];
+    Object.keys(comments).forEach(commenterKey => {
+      const perTarget = comments[commenterKey] || {};
+      Object.keys(perTarget).forEach(targetKey => {
+        const c = perTarget[targetKey];
+        const targetOpinion = opinions[targetKey] || {};
+        commentRows.push([
+          c.commenterStudentId || commenterKey,
+          c.commenterName || '',
+          targetOpinion.studentId || targetKey,
+          targetOpinion.name || '',
+          c.commentText || '',
+          adminFormatTs(c.submittedAt)
+        ]);
+      });
+    });
+    setTimeout(() => {
+      adminDownloadCSV(
+        adminSanitizeFilename(theme.title) + '_コメント一覧.csv',
+        adminToCSV(['コメント記載者学籍番号', 'コメント記載者氏名', '対象学籍番号', '対象氏名', 'コメント内容', '提出日時'], commentRows)
+      );
+    }, 300);
+
+    adminLog('CSVをダウンロードしました。');
+  }).catch(err => alert('CSV出力に失敗しました：' + err.message));
+}
+
+function adminFormatTs(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function adminSanitizeFilename(name) {
+  return (name || 'theme').replace(/[\\/:*?"<>|]/g, '_').slice(0, 40);
+}
+
+function adminCsvEscape(val) {
+  const s = String(val ?? '');
+  if (/[",\n]/.test(s)) { return '"' + s.replace(/"/g, '""') + '"'; }
+  return s;
+}
+
+function adminToCSV(headers, rows) {
+  const lines = [headers.map(adminCsvEscape).join(',')];
+  rows.forEach(row => lines.push(row.map(adminCsvEscape).join(',')));
+  return lines.join('\r\n');
+}
+
+function adminDownloadCSV(filename, content) {
+  const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 </script>
 </body>
 </html>
