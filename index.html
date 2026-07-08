@@ -920,14 +920,13 @@ function adminAddDemoStudents(themeId, theme) {
   const now = Date.now();
   const updates = {};
 
-  // 意見を追加（常に）
+  // 意見を追加（_isDemoなし・正規フォーマットで書き込む）
   DEMO_STUDENTS.forEach((s, i) => {
     updates[`opinions/${themeId}/${s.key}`] = {
       text: DEMO_OPINIONS[i],
       name: s.name,
       studentId: s.studentId,
-      submittedAt: now - (DEMO_STUDENTS.length - i) * 60000,
-      _isDemo: true
+      submittedAt: now - (DEMO_STUDENTS.length - i) * 60000
     };
   });
 
@@ -940,7 +939,7 @@ function adminAddDemoStudents(themeId, theme) {
       for (let offset = 1; offset <= demoAssignCount; offset++) {
         targets.push(DEMO_STUDENTS[(i + offset) % DEMO_STUDENTS.length].key);
       }
-      updates[`assignments/${themeId}/${s.key}`] = { targets, _isDemo: true };
+      updates[`assignments/${themeId}/${s.key}`] = { targets };
     });
   }
 
