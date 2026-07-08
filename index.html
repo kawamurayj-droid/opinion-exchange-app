@@ -662,6 +662,13 @@ function adminRenderCurrentThemeBox(themeId, theme) {
         ${theme.status === 'distributed' ? `<button id="close-btn" class="danger">このテーマを終了する</button>` : ''}
         ${oppCount > 0 ? `<button id="export-current-btn" class="secondary">CSVをダウンロード</button>` : ''}
       </div>
+      <hr style="margin:18px 0; border:none; border-top:1px solid var(--line);">
+      <p style="font-size:0.82rem; color:var(--muted); margin:0 0 10px;">📽 デモ用（授業説明・画面投影時）</p>
+      <div class="row">
+        <button id="add-demo-btn" class="secondary">デモ学生を追加する</button>
+        <button id="remove-demo-btn" class="danger" style="font-size:0.82rem; padding:8px 14px;">デモデータを削除</button>
+      </div>
+      <p class="small-note" id="demo-note"></p>
       <p class="small-note" id="distribute-note"></p>
     `;
 
@@ -683,20 +690,33 @@ function adminRenderCurrentThemeBox(themeId, theme) {
         adminExportThemeCSV(themeId, theme);
       });
     }
+
+    document.getElementById('add-demo-btn').addEventListener('click', () => {
+      adminAddDemoStudents(themeId, theme);
+    });
+    document.getElementById('remove-demo-btn').addEventListener('click', () => {
+      adminRemoveDemoStudents(themeId);
+    });
   });
 }
 
 function adminRunDistribution(themeId, theme, opinions) {
-  const keys = Object.keys(opinions);
-  const n = keys.length;
+  const allKeys = Object.keys(opinions);
+
+  // デモ学生と本番学生を分離
+  const demoKeys = allKeys.filter(k => k.startsWith('DEMO_'));
+  const realKeys = allKeys.filter(k => !k.startsWith('DEMO_'));
+
+  const n = realKeys.length;
   const assignCount = theme.assignCount;
 
   if (n < assignCount + 1) {
-    alert(`配信には最低 ${assignCount + 1} 人分の意見が必要です（現在 ${n} 件）。`);
+    alert(`配信には最低 ${assignCount + 1} 人分の意見が必要です（現在 ${n} 件）。\n※デモ学生は本番の配信人数にカウントされません。`);
     return;
   }
 
-  const shuffled = [...keys];
+  // 本番学生をシャッフルして円環オフセット配信
+  const shuffled = [...realKeys];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
@@ -708,15 +728,28 @@ function adminRunDistribution(themeId, theme, opinions) {
     for (let offset = 1; offset <= assignCount; offset++) {
       targets.push(shuffled[(i + offset) % n]);
     }
-    const studentKey = shuffled[i];
-    updates[`assignments/${themeId}/${studentKey}`] = { targets };
+    updates[`assignments/${themeId}/${shuffled[i]}`] = { targets };
   }
+
+  // デモ学生同士でも円環オフセット配信（デモ用のコメント体験のため）
+  if (demoKeys.length >= 2) {
+    const demoAssignCount = Math.min(assignCount, demoKeys.length - 1);
+    for (let i = 0; i < demoKeys.length; i++) {
+      const targets = [];
+      for (let offset = 1; offset <= demoAssignCount; offset++) {
+        targets.push(demoKeys[(i + offset) % demoKeys.length]);
+      }
+      updates[`assignments/${themeId}/${demoKeys[i]}`] = { targets, _isDemo: true };
+    }
+  }
+
   updates[`themes/list/${themeId}/status`] = 'distributed';
   updates[`themes/list/${themeId}/distributedAt`] = firebase.database.ServerValue.TIMESTAMP;
 
   document.getElementById('distribute-note').textContent = '配信を実行中…';
   db.ref().update(updates).then(() => {
-    adminLog(`配信を実行しました（${n}人 × ${assignCount}件）。`);
+    const demoMsg = demoKeys.length >= 2 ? `（デモ学生${demoKeys.length}人同士でも別途配信済み）` : '';
+    adminLog(`配信を実行しました（本番${n}人 × ${assignCount}件）${demoMsg}。`);
     adminLoadCurrentTheme();
     adminLoadThemeList();
   }).catch(err => alert('配信に失敗しました：' + err.message));
@@ -790,31 +823,37 @@ function adminExportThemeCSV(themeId, theme) {
     const opinions = oppSnap.val() || {};
     const comments = cmtSnap.val() || {};
 
-    const opinionRows = Object.keys(opinions).map(key => {
-      const o = opinions[key];
-      return [o.studentId || key, o.name || '', o.text || '', adminFormatTs(o.submittedAt)];
-    });
+    const opinionRows = Object.keys(opinions)
+      .filter(key => !key.startsWith('DEMO_'))
+      .map(key => {
+        const o = opinions[key];
+        return [o.studentId || key, o.name || '', o.text || '', adminFormatTs(o.submittedAt)];
+      });
     adminDownloadCSV(
       adminSanitizeFilename(theme.title) + '_意見一覧.csv',
       adminToCSV(['学籍番号', '氏名', '意見内容', '提出日時'], opinionRows)
     );
 
     const commentRows = [];
-    Object.keys(comments).forEach(commenterKey => {
-      const perTarget = comments[commenterKey] || {};
-      Object.keys(perTarget).forEach(targetKey => {
-        const c = perTarget[targetKey];
-        const targetOpinion = opinions[targetKey] || {};
-        commentRows.push([
-          c.commenterStudentId || commenterKey,
-          c.commenterName || '',
-          targetOpinion.studentId || targetKey,
-          targetOpinion.name || '',
-          c.commentText || '',
-          adminFormatTs(c.submittedAt)
-        ]);
+    Object.keys(comments)
+      .filter(commenterKey => !commenterKey.startsWith('DEMO_'))
+      .forEach(commenterKey => {
+        const perTarget = comments[commenterKey] || {};
+        Object.keys(perTarget)
+          .filter(targetKey => !targetKey.startsWith('DEMO_'))
+          .forEach(targetKey => {
+            const c = perTarget[targetKey];
+            const targetOpinion = opinions[targetKey] || {};
+            commentRows.push([
+              c.commenterStudentId || commenterKey,
+              c.commenterName || '',
+              targetOpinion.studentId || targetKey,
+              targetOpinion.name || '',
+              c.commentText || '',
+              adminFormatTs(c.submittedAt)
+            ]);
+          });
       });
-    });
     setTimeout(() => {
       adminDownloadCSV(
         adminSanitizeFilename(theme.title) + '_コメント一覧.csv',
@@ -847,6 +886,92 @@ function adminToCSV(headers, rows) {
   const lines = [headers.map(adminCsvEscape).join(',')];
   rows.forEach(row => lines.push(row.map(adminCsvEscape).join(',')));
   return lines.join('\r\n');
+}
+
+// ===== デモ学生 =====
+const DEMO_STUDENTS = [
+  { key: 'DEMO_0001', studentId: 'DEMO0001', name: 'デモ　太郎' },
+  { key: 'DEMO_0002', studentId: 'DEMO0002', name: 'デモ　花子' },
+  { key: 'DEMO_0003', studentId: 'DEMO0003', name: 'デモ　次郎' },
+  { key: 'DEMO_0004', studentId: 'DEMO0004', name: 'デモ　三郎' },
+  { key: 'DEMO_0005', studentId: 'DEMO0005', name: 'デモ　幸子' },
+];
+
+const DEMO_OPINIONS = [
+  'この問題については、まず地域住民が主体となった取り組みが重要だと思います。行政が一方的に進めるのではなく、当事者の声を丁寧に拾い上げることが必要ではないでしょうか。',
+  '現状の制度には課題があると感じます。特に情報共有の仕組みが不十分で、支援が必要な人に届いていないケースが多いように思います。ICTの活用が鍵になると考えます。',
+  '私は予防的なアプローチが重要だと考えます。問題が深刻化してから対処するのではなく、早期に介入できる体制を整えることが、長期的なコスト削減にもつながると思います。',
+  '多職種連携の重要性を改めて感じています。医療・福祉・教育それぞれの専門職が情報を共有し、同じ方向を向いて支援できる仕組みが必要だと思います。',
+  '地域のボランティアや住民組織の役割がもっと注目されるべきだと思います。専門職だけでは限界があり、地域の力を活かした支援が持続可能な社会につながると考えます。',
+];
+
+const DEMO_COMMENTS = [
+  'おっしゃる通りだと思います。特に当事者参画の視点は大切で、私も実習でその重要性を感じました。',
+  'ICT活用については賛成ですが、デジタルに不慣れな方への配慮も必要だと思いました。どちらも大切にする視点が重要ですね。',
+  '予防的アプローチは確かに重要だと思います。早期発見・早期支援のために、地域のゆるやかなつながりをどう作るかが課題だと感じました。',
+  '多職種連携については、実際の現場では難しさもあると聞きます。連携をスムーズにするためのコーディネーター役の存在が鍵になりそうです。',
+  '地域住民の力という視点、大切だと思いました。ただ、ボランティアに頼りすぎると担い手が疲弊するリスクもあるので、適切なサポートが必要だと感じます。',
+];
+
+function adminAddDemoStudents(themeId, theme) {
+  const note = document.getElementById('demo-note');
+  note.textContent = 'デモ学生を追加中…';
+
+  const now = Date.now();
+  const updates = {};
+
+  // 意見を追加（常に）
+  DEMO_STUDENTS.forEach((s, i) => {
+    updates[`opinions/${themeId}/${s.key}`] = {
+      text: DEMO_OPINIONS[i],
+      name: s.name,
+      studentId: s.studentId,
+      submittedAt: now - (DEMO_STUDENTS.length - i) * 60000,
+      _isDemo: true
+    };
+  });
+
+  // 配信済み・終了済みの場合はデモ学生同士のassignmentも生成
+  // ※コメントはあえて入れない → 学生画面でコメント入力の様子を実際に見せられる
+  if (theme.status === 'distributed' || theme.status === 'closed') {
+    const demoAssignCount = Math.min(theme.assignCount, DEMO_STUDENTS.length - 1);
+    DEMO_STUDENTS.forEach((s, i) => {
+      const targets = [];
+      for (let offset = 1; offset <= demoAssignCount; offset++) {
+        targets.push(DEMO_STUDENTS[(i + offset) % DEMO_STUDENTS.length].key);
+      }
+      updates[`assignments/${themeId}/${s.key}`] = { targets, _isDemo: true };
+    });
+  }
+
+  db.ref().update(updates).then(() => {
+    const statusMsg = (theme.status === 'distributed' || theme.status === 'closed')
+      ? 'コメント入力画面も表示されます（DEMO0001〜DEMO0005でログインして確認）。'
+      : '意見募集中のため、配信実行後にコメント画面が表示されるようになります。';
+    note.textContent = `デモ学生5人を追加しました（デモ太郎〜デモ幸子）。${statusMsg}`;
+    adminLoadCurrentTheme();
+  }).catch(err => {
+    note.textContent = '追加に失敗しました：' + err.message;
+  });
+}
+
+function adminRemoveDemoStudents(themeId) {
+  const note = document.getElementById('demo-note');
+  note.textContent = 'デモデータを削除中…';
+
+  const updates = {};
+  DEMO_STUDENTS.forEach(s => {
+    updates[`opinions/${themeId}/${s.key}`] = null;
+    updates[`assignments/${themeId}/${s.key}`] = null;
+    updates[`comments/${themeId}/${s.key}`] = null;
+  });
+
+  db.ref().update(updates).then(() => {
+    note.textContent = 'デモデータを削除しました。';
+    adminLoadCurrentTheme();
+  }).catch(err => {
+    note.textContent = '削除に失敗しました：' + err.message;
+  });
 }
 
 function adminDownloadCSV(filename, content) {
