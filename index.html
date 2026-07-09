@@ -739,7 +739,7 @@ function adminRunDistribution(themeId, theme, opinions) {
       for (let offset = 1; offset <= demoAssignCount; offset++) {
         targets.push(demoKeys[(i + offset) % demoKeys.length]);
       }
-      updates[`assignments/${themeId}/${demoKeys[i]}`] = { targets, _isDemo: true };
+      updates[`assignments/${themeId}/${demoKeys[i]}`] = { targets };
     }
   }
 
