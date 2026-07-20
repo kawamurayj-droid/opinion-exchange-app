@@ -153,11 +153,24 @@
 </head>
 <body>
 
+<!-- ============ Googleログイン関門（最初に必ず通過） ============ -->
+<div class="wrap" id="gate-app" style="max-width:420px">
+  <header>
+    <h1>意見交換アプリ</h1>
+    <p>本人確認</p>
+  </header>
+  <div class="card">
+    <p style="color:var(--muted); font-size:0.9rem; margin-bottom:16px;">ご利用の前に、NBUのGoogleアカウントでログインしてください。</p>
+    <button id="gate-login-btn">Googleでログイン</button>
+  </div>
+</div>
+
 <!-- ============ 学生用画面 ============ -->
-<div class="wrap" id="student-app">
+<div class="wrap hidden" id="student-app">
   <header>
     <h1>意見交換アプリ</h1>
     <p id="theme-title-sub">テーマを読み込み中…</p>
+    <div class="footer-link" style="margin-top:8px"><a id="student-logout-link">ログアウト</a></div>
   </header>
 
   <!-- ログイン -->
@@ -242,6 +255,7 @@
   <header>
     <h1>意見交換アプリ - 管理画面</h1>
     <p>テーマの作成・配信の実行・提出状況の確認</p>
+    <div class="footer-link" style="margin-top:8px"><a id="admin-logout-link">ログアウト</a></div>
   </header>
 
   <div class="card">
@@ -277,6 +291,7 @@
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 
 <script>
 /* ===== Firebaseプロジェクトの設定値 ===== */
@@ -290,6 +305,7 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const auth = firebase.auth();
 
 const TEACHER_PIN = "1234";
 
@@ -300,9 +316,41 @@ function escapeHtml(str) {
 }
 
 /* ===================================================================
-   画面切り替え（学生 / 教員PIN入力 / 管理画面）
+   Googleログイン（NBUドメイン限定）
+   =================================================================== */
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+googleProvider.setCustomParameters({ hd: "nbu.ac.jp" });
+let appInited = false;
+
+auth.onAuthStateChanged(user => {
+  if (user && user.email && user.email.endsWith("@nbu.ac.jp")) {
+    if (!appInited) { appInited = true; initApp(); }
+    showScreen('student');
+  } else {
+    if (user) auth.signOut(); // NBU以外のアカウントは強制サインアウト
+    showScreen('gate');
+  }
+});
+
+document.getElementById('gate-login-btn').addEventListener('click', async () => {
+  try {
+    const result = await auth.signInWithPopup(googleProvider);
+    if (!result.user.email.endsWith("@nbu.ac.jp")) {
+      await auth.signOut();
+      alert("NBUのGoogleアカウントでログインしてください");
+    }
+  } catch (e) {
+    alert("ログインに失敗しました: " + e.message);
+  }
+});
+document.getElementById('student-logout-link').addEventListener('click', (e) => { e.preventDefault(); auth.signOut(); });
+document.getElementById('admin-logout-link').addEventListener('click', (e) => { e.preventDefault(); auth.signOut(); });
+
+/* ===================================================================
+   画面切り替え（ゲート / 学生 / 教員PIN入力 / 管理画面）
    =================================================================== */
 const screens = {
+  gate: document.getElementById('gate-app'),
   student: document.getElementById('student-app'),
   teacherPin: document.getElementById('teacher-pin-app'),
   admin: document.getElementById('admin-app'),
@@ -381,7 +429,7 @@ document.getElementById('login-btn').addEventListener('click', () => {
   loadCurrentTheme();
 });
 
-window.addEventListener('DOMContentLoaded', () => {
+function initApp() {
   const savedKey = sessionStorage.getItem('opinionapp_key');
   if (savedKey) {
     myName = sessionStorage.getItem('opinionapp_name') || '';
@@ -390,7 +438,7 @@ window.addEventListener('DOMContentLoaded', () => {
     els.loginCard.classList.add('hidden');
     loadCurrentTheme();
   }
-});
+}
 
 function loadCurrentTheme() {
   db.ref('themes/current').once('value').then(snap => {
