@@ -261,6 +261,10 @@
   <div class="card">
     <h2>① 新しいテーマを作成</h2>
     <div class="field-row">
+      <label for="new-subject">科目名</label>
+      <input type="text" id="new-subject" placeholder="例：社会参画、コミュニティワーク論" autocomplete="off">
+    </div>
+    <div class="field-row">
       <label for="new-theme-title">テーマ文（学生に表示される問い）</label>
       <textarea id="new-theme-title" placeholder="例：地域包括ケアにおける住民参加について、あなたの考えを述べてください"></textarea>
     </div>
@@ -451,8 +455,8 @@ function loadCurrentTheme() {
     db.ref('themes/list/' + themeId).once('value').then(themeSnap => {
       const theme = themeSnap.val();
       if (!theme) return;
-      els.themeTitleSub.textContent = theme.title;
-      els.themeTextDisplay.textContent = theme.title;
+      els.themeTitleSub.textContent = (theme.subject ? `【${theme.subject}】` : '') + theme.title;
+      els.themeTextDisplay.textContent = (theme.subject ? `【${theme.subject}】` : '') + theme.title;
       routeByStatus(theme);
     });
   });
@@ -636,12 +640,15 @@ function adminGenThemeId() {
 }
 
 document.getElementById('create-theme-btn').addEventListener('click', () => {
+  const subject = document.getElementById('new-subject').value.trim();
   const title = document.getElementById('new-theme-title').value.trim();
+  if (!subject) { alert('科目名を入力してください'); return; }
   if (!title) { alert('テーマ文を入力してください'); return; }
   const assignCount = parseInt(document.getElementById('assign-count').value, 10);
 
   const themeId = adminGenThemeId();
   const theme = {
+    subject,
     title,
     assignCount,
     status: 'open',
@@ -651,6 +658,7 @@ document.getElementById('create-theme-btn').addEventListener('click', () => {
   db.ref('themes/list/' + themeId).set(theme)
     .then(() => db.ref('themes/current').set(themeId))
     .then(() => {
+      document.getElementById('new-subject').value = '';
       document.getElementById('new-theme-title').value = '';
       adminLog('テーマを作成し、意見募集を開始しました。');
       adminLoadThemeList();
@@ -700,7 +708,7 @@ function adminRenderCurrentThemeBox(themeId, theme) {
       ? oppCount * theme.assignCount : null;
 
     box.innerHTML = `
-      <p><strong>${escapeHtml(theme.title)}</strong> ${adminStatusBadge(theme.status)}</p>
+      <p><strong>${theme.subject ? `<span style="color:var(--muted); font-size:0.85rem;">【${escapeHtml(theme.subject)}】</span> ` : ''}${escapeHtml(theme.title)}</strong> ${adminStatusBadge(theme.status)}</p>
       <div class="stat">
         <div class="stat-box"><div class="num">${oppCount}</div><div class="label">意見の提出数</div></div>
         <div class="stat-box"><div class="num">${commentTotal}${expectedComments !== null ? ' / ' + expectedComments : ''}</div><div class="label">コメント提出数</div></div>
@@ -778,17 +786,34 @@ function adminLoadThemeList() {
       list.innerHTML = '<p class="small-note">まだテーマがありません。</p>';
       return;
     }
-    list.innerHTML = ids.map(id => {
+
+    // 科目ごとにグループ化（科目なしは「その他」に）
+    const groups = {};
+    ids.forEach(id => {
       const t = all[id];
-      return `<div class="theme-item">
-        <span>${escapeHtml(t.title)}</span>
-        <span style="display:flex; align-items:center; gap:10px;">
-          ${adminStatusBadge(t.status)}
-          <button class="secondary export-btn" data-theme-id="${id}" style="padding:6px 12px; font-size:0.78rem;">CSV</button>
-          <button class="danger delete-btn" data-theme-id="${id}" style="padding:6px 12px; font-size:0.78rem;">削除</button>
-        </span>
-      </div>`;
-    }).join('');
+      const subject = t.subject || 'その他';
+      if (!groups[subject]) groups[subject] = [];
+      groups[subject].push(id);
+    });
+
+    let html = '';
+    Object.keys(groups).forEach(subject => {
+      html += `<div style="margin-bottom:18px;">
+        <div style="font-size:0.78rem; font-weight:700; color:var(--accent); letter-spacing:0.04em; padding:6px 0 4px; border-bottom:1px solid var(--accent-soft);">【${escapeHtml(subject)}】</div>`;
+      groups[subject].forEach(id => {
+        const t = all[id];
+        html += `<div class="theme-item">
+          <span style="font-size:0.92rem;">${escapeHtml(t.title)}</span>
+          <span style="display:flex; align-items:center; gap:10px;">
+            ${adminStatusBadge(t.status)}
+            <button class="secondary export-btn" data-theme-id="${id}" style="padding:6px 12px; font-size:0.78rem;">CSV</button>
+            <button class="danger delete-btn" data-theme-id="${id}" style="padding:6px 12px; font-size:0.78rem;">削除</button>
+          </span>
+        </div>`;
+      });
+      html += `</div>`;
+    });
+    list.innerHTML = html;
 
     list.querySelectorAll('.export-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -841,8 +866,9 @@ function adminExportThemeCSV(themeId, theme) {
       const o = opinions[key];
       return [o.studentId || key, o.name || '', o.text || '', adminFormatTs(o.submittedAt)];
     });
+    const csvPrefix = adminSanitizeFilename((theme.subject ? theme.subject + '_' : '') + theme.title);
     adminDownloadCSV(
-      adminSanitizeFilename(theme.title) + '_意見一覧.csv',
+      csvPrefix + '_意見一覧.csv',
       adminToCSV(['学籍番号', '氏名', '意見内容', '提出日時'], opinionRows)
     );
 
@@ -864,7 +890,7 @@ function adminExportThemeCSV(themeId, theme) {
     });
     setTimeout(() => {
       adminDownloadCSV(
-        adminSanitizeFilename(theme.title) + '_コメント一覧.csv',
+        csvPrefix + '_コメント一覧.csv',
         adminToCSV(['コメント記載者学籍番号', 'コメント記載者氏名', '対象学籍番号', '対象氏名', 'コメント内容', '提出日時'], commentRows)
       );
     }, 300);
