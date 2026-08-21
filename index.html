@@ -318,12 +318,22 @@ auth.onAuthStateChanged(user => {
 
 document.getElementById('gate-login-btn').addEventListener('click', async () => {
   try {
-    const result = await auth.signInWithPopup(googleProvider);
+    await auth.signInWithRedirect(googleProvider);
+  } catch (e) {
+    alert("ログインに失敗しました: " + e.message);
+  }
+});
+
+// リダイレクト後の結果を受け取る
+auth.getRedirectResult().then(result => {
+  if (result && result.user) {
     if (!result.user.email.endsWith("@nbu.ac.jp")) {
-      await auth.signOut();
+      auth.signOut();
       alert("NBUのGoogleアカウントでログインしてください");
     }
-  } catch (e) {
+  }
+}).catch(e => {
+  if (e.code !== 'auth/no-auth-event') {
     alert("ログインに失敗しました: " + e.message);
   }
 });
