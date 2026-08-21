@@ -399,15 +399,12 @@ const els = {
   themeTextDisplay: document.getElementById('theme-text-display'),
 };
 
-function loadCurrentTheme() {
+function initApp() {
   const user = auth.currentUser;
   if (!user) return;
-  // メールアドレスをFirebaseキーとして使用（.#$[]/ → _ に変換）
   myKey = user.email.replace(/[.#$\[\]/]/g, '_');
   myName = user.displayName || user.email.split('@')[0];
-  myStudentId = user.email; // CSVでの識別用
-  // ログインカードを非表示にしてテーマを読み込む
-  if (els.loginCard) els.loginCard.classList.add('hidden');
+  myStudentId = user.email;
   loadCurrentTheme();
 }
 
