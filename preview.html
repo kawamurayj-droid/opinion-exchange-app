@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>意見交換アプリ - 学生画面プレビュー</title>
+<style>
+  :root {
+    --bg: #f7f5f2;
+    --ink: #2b2a28;
+    --accent: #b5573e;
+    --accent-soft: #f1ddd5;
+    --line: #ddd6cd;
+    --card-bg: #ffffff;
+    --muted: #79746c;
+    --ok: #4a7a4a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.7;
+  }
+
+  /* プレビューコントローラー（画面上部固定） */
+  .preview-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    background: #2b2a28;
+    color: #fff;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    z-index: 100;
+    font-size: 0.85rem;
+  }
+  .preview-bar span {
+    color: #f1ddd5;
+    font-weight: 700;
+    margin-right: 4px;
+  }
+  .preview-bar button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .preview-bar button:hover { background: #8a3b2a; }
+  .preview-bar button.inactive {
+    background: #555;
+    cursor: default;
+  }
+  .preview-bar .step-label {
+    color: #aaa;
+    font-size: 0.78rem;
+  }
+
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 80px 20px 60px; /* 上部にpreview-barの分の余白 */
+  }
+  header {
+    padding: 28px 0 18px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 24px;
+  }
+  header h1 { font-size: 1.4rem; margin: 0 0 4px; letter-spacing: 0.02em; }
+  header p { margin: 0; color: var(--muted); font-size: 0.85rem; }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 22px;
+    margin-bottom: 18px;
+  }
+  .card h2 {
+    font-size: 1.05rem;
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .badge {
+    display: inline-block;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 999px;
+  }
+  label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 6px; }
+  textarea {
+    width: 100%;
+    font-size: 1rem;
+    padding: 11px 12px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fdfcfb;
+    font-family: inherit;
+    color: var(--ink);
+    resize: vertical;
+    min-height: 90px;
+  }
+  button.main-btn {
+    background: var(--ink);
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    padding: 12px 22px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  button.main-btn:hover { background: var(--accent); }
+  .opinion-block {
+    border-left: 3px solid var(--accent);
+    padding: 12px 14px;
+    background: #fbf7f4;
+    border-radius: 0 7px 7px 0;
+    margin-bottom: 12px;
+    font-size: 0.96rem;
+  }
+  .comment-author {
+    text-align: right;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+  .status-msg { font-size: 0.85rem; color: var(--muted); margin-top: 10px; }
+  .done-mark { color: #4a7a4a; font-weight: 600; }
+  .hidden { display: none !important; }
+  .small-note { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+  .field-row { margin-bottom: 16px; }
+  .footer-link { text-align: center; margin-top: 28px; }
+  .footer-link a { font-size: 0.78rem; color: var(--muted); text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<!-- プレビューコントローラー -->
+<div class="preview-bar">
+  <span>📽 プレビュー</span>
+  <span class="step-label" id="step-label">STEP 1 / 4</span>
+  <button id="prev-btn" class="inactive" onclick="changeStep(-1)">◀ 前の画面</button>
+  <button onclick="changeStep(1)">次の画面 ▶</button>
+</div>
+
+<!-- 学生画面 -->
+<div class="wrap">
+  <header>
+    <h1>意見交換アプリ</h1>
+    <p id="theme-header-text">テーマを読み込み中…</p>
+  </header>
+
+  <!-- STEP 1: 意見入力 -->
+  <div id="step1" class="card">
+    <h2><span class="badge">STEP 1</span>意見を提出する</h2>
+    <p id="theme-display-text" style="color:var(--muted); font-size:0.9rem;"></p>
+    <div class="field-row">
+      <textarea placeholder="あなたの考えを入力してください（プレビューのため送信はされません）"></textarea>
+    </div>
+    <button class="main-btn">提出する</button>
+  </div>
+
+  <!-- STEP 2: 意見提出後の待機 -->
+  <div id="step2" class="card hidden">
+    <h2>お疲れさまでした</h2>
+    <p style="color:var(--muted);">意見を提出済みです。配信が開始されるまでお待ちください。</p>
+    <button class="main-btn" style="background:transparent; color:var(--ink); border:1px solid var(--line);">最新の状態を確認する</button>
+    <p class="small-note">先生が配信を行うと、このボタンを押すことでコメント画面に切り替わります。</p>
+  </div>
+
+  <!-- STEP 3: コメント入力 -->
+  <div id="step3" class="card hidden">
+    <h2><span class="badge">STEP 2</span>配信された意見にコメントする</h2>
+    <p style="color:var(--muted); font-size:0.85rem;">他の人の意見が下に表示されます。それぞれにコメントを書いて提出してください（あなたの名前はコメントに表示されます）。</p>
+
+    <div class="opinion-block">
+      <div style="font-size:0.75rem; color:var(--muted); margin-bottom:6px;">配信された意見 1（提出者：非公開）</div>
+      <div style="margin-bottom:12px;">この問題については、まず地域住民が主体となった取り組みが重要だと思います。行政が一方的に進めるのではなく、当事者の声を丁寧に拾い上げることが必要ではないでしょうか。</div>
+      <label>あなたのコメント</label>
+      <textarea placeholder="コメントを入力してください（プレビューのため送信はされません）"></textarea>
+    </div>
+
+    <div class="opinion-block">
+      <div style="font-size:0.75rem; color:var(--muted); margin-bottom:6px;">配信された意見 2（提出者：非公開）</div>
+      <div style="margin-bottom:12px;">現状の制度には課題があると感じます。特に情報共有の仕組みが不十分で、支援が必要な人に届いていないケースが多いように思います。ICTの活用が鍵になると考えます。</div>
+      <label>あなたのコメント</label>
+      <textarea placeholder="コメントを入力してください（プレビューのため送信はされません）"></textarea>
+    </div>
+
+    <div class="opinion-block">
+      <div style="font-size:0.75rem; color:var(--muted); margin-bottom:6px;">配信された意見 3（提出者：非公開）</div>
+      <div style="margin-bottom:12px;">地域のボランティアや住民組織の役割がもっと注目されるべきだと思います。専門職だけでは限界があり、地域の力を活かした支援が持続可能な社会につながると考えます。</div>
+      <label>あなたのコメント</label>
+      <textarea placeholder="コメントを入力してください（プレビューのため送信はされません）"></textarea>
+    </div>
+
+    <button class="main-btn">すべてのコメントを提出する</button>
+  </div>
+
+  <!-- STEP 4: 届いたコメント -->
+  <div id="step4" class="card hidden">
+    <h2>あなたの意見に届いたコメント</h2>
+
+    <div class="opinion-block">
+      <div>おっしゃる通りだと思います。特に当事者参画の視点は大切で、私も実習でその重要性を感じました。</div>
+      <div class="comment-author">提出者：山田　太郎</div>
+    </div>
+
+    <div class="opinion-block">
+      <div>地域住民が主体になるためには、まず住民自身が課題を「自分ごと」として捉えられる機会が必要だと感じました。</div>
+      <div class="comment-author">提出者：佐藤　花子</div>
+    </div>
+
+    <div class="opinion-block">
+      <div>行政との協働という視点も重要ですね。住民主体と行政のサポートをどうバランスさせるかが実践上の課題だと思います。</div>
+      <div class="comment-author">提出者：鈴木　次郎</div>
+    </div>
+
+    <p class="small-note">コメントを提出済みです。お疲れさまでした。</p>
+  </div>
+
+  <div class="footer-link"><a>教員の方はこちら</a></div>
+</div>
+
+<script>
+// URLパラメータから科目名・テーマを取得
+const params = new URLSearchParams(window.location.search);
+const subject = params.get('subject') || '';
+const title = params.get('title') || '（テーマ未設定）';
+
+const headerText = (subject ? `【${subject}】` : '') + title;
+document.getElementById('theme-header-text').textContent = headerText;
+document.getElementById('theme-display-text').textContent = headerText;
+
+// ステップ管理
+const steps = ['step1', 'step2', 'step3', 'step4'];
+const stepLabels = [
+  'STEP 1 / 4：意見入力画面',
+  'STEP 2 / 4：提出後の待機画面',
+  'STEP 3 / 4：コメント入力画面',
+  'STEP 4 / 4：届いたコメント画面',
+];
+let current = 0;
+
+function changeStep(dir) {
+  const next = current + dir;
+  if (next < 0 || next >= steps.length) return;
+  document.getElementById(steps[current]).classList.add('hidden');
+  current = next;
+  document.getElementById(steps[current]).classList.remove('hidden');
+  document.getElementById('step-label').textContent = stepLabels[current];
+
+  const prevBtn = document.getElementById('prev-btn');
+  prevBtn.className = current === 0 ? 'inactive' : '';
+  prevBtn.onclick = current === 0 ? null : () => changeStep(-1);
+}
+
+// 初期表示
+document.getElementById('step-label').textContent = stepLabels[0];
+</script>
+</body>
+</html>

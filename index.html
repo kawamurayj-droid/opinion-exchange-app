@@ -256,6 +256,8 @@
       </select>
     </div>
     <button id="create-theme-btn">テーマを作成して開始（意見募集を開始）</button>
+    <button id="preview-theme-btn" class="secondary" style="margin-top:8px;">📽 この内容でプレビューを開く</button>
+    <p class="small-note">プレビューはFirebaseに接続しません。学生への画面説明用です。</p>
   </div>
 
   <div class="card">
@@ -599,6 +601,17 @@ function adminLog(msg) {
 function adminGenThemeId() {
   return 'theme_' + Date.now();
 }
+
+document.getElementById('preview-theme-btn').addEventListener('click', () => {
+  const subject = document.getElementById('new-subject').value.trim();
+  const title = document.getElementById('new-theme-title').value.trim();
+  if (!subject && !title) {
+    alert('科目名またはテーマ文を入力してからプレビューを開いてください。');
+    return;
+  }
+  const params = new URLSearchParams({ subject, title });
+  window.open('preview.html?' + params.toString(), '_blank');
+});
 
 document.getElementById('create-theme-btn').addEventListener('click', () => {
   const subject = document.getElementById('new-subject').value.trim();
