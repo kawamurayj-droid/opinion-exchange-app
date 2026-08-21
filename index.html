@@ -273,9 +273,9 @@
 </div>
 
 <!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 
 <script>
 /* ===== Firebaseプロジェクトの設定値 ===== */
@@ -318,23 +318,19 @@ auth.onAuthStateChanged(user => {
 
 document.getElementById('gate-login-btn').addEventListener('click', async () => {
   try {
-    await auth.signInWithRedirect(googleProvider);
-  } catch (e) {
-    alert("ログインに失敗しました: " + e.message);
-  }
-});
-
-// リダイレクト後の結果を受け取る
-auth.getRedirectResult().then(result => {
-  if (result && result.user) {
+    const result = await auth.signInWithPopup(googleProvider);
     if (!result.user.email.endsWith("@nbu.ac.jp")) {
-      auth.signOut();
-      alert("NBUのGoogleアカウントでログインしてください");
+      await auth.signOut();
+      alert("NBUのGoogleアカウント（@nbu.ac.jp）でログインしてください");
     }
-  }
-}).catch(e => {
-  if (e.code !== 'auth/no-auth-event') {
-    alert("ログインに失敗しました: " + e.message);
+  } catch (e) {
+    if (e.code === 'auth/popup-blocked') {
+      alert("ポップアップがブロックされました。ブラウザのアドレスバー右側にあるポップアップブロックのアイコンをクリックして許可してください。");
+    } else if (e.code === 'auth/popup-closed-by-user') {
+      // 何もしない（ユーザーが自分で閉じた）
+    } else {
+      alert("ログインに失敗しました: " + e.message);
+    }
   }
 });
 document.getElementById('student-logout-link').addEventListener('click', (e) => { e.preventDefault(); auth.signOut(); });
