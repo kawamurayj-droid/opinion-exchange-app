@@ -173,26 +173,6 @@
     <div class="footer-link" style="margin-top:8px"><a id="student-logout-link">ログアウト</a></div>
   </header>
 
-  <!-- ログイン -->
-  <div class="card" id="login-card">
-    <h2>① はじめに学籍番号・氏名を入力</h2>
-    <div class="field-row">
-      <label for="student-id">学籍番号</label>
-      <input type="text" id="student-id" placeholder="例：1234567" autocomplete="off">
-    </div>
-    <div class="row" style="margin-top:-4px; margin-bottom:16px;">
-      <div style="flex:1;">
-        <label for="student-family-name">姓</label>
-        <input type="text" id="student-family-name" placeholder="例：山田" autocomplete="off">
-      </div>
-      <div style="flex:1;">
-        <label for="student-given-name">名</label>
-        <input type="text" id="student-given-name" placeholder="例：太郎" autocomplete="off">
-      </div>
-    </div>
-    <button id="login-btn">はじめる</button>
-  </div>
-
   <!-- 意見投稿 -->
   <div class="card hidden" id="opinion-card">
     <h2><span class="badge">STEP 1</span>意見を提出する</h2>
@@ -401,7 +381,6 @@ let myName = "";
 let myStudentId = "";
 
 const els = {
-  loginCard: document.getElementById('login-card'),
   opinionCard: document.getElementById('opinion-card'),
   commentCard: document.getElementById('comment-card'),
   waitingCard: document.getElementById('waiting-card'),
@@ -410,38 +389,16 @@ const els = {
   themeTextDisplay: document.getElementById('theme-text-display'),
 };
 
-function makeKey(name, sid) {
-  return sid.trim().replace(/[.#$\[\]/]/g, '_');
-}
-
-document.getElementById('login-btn').addEventListener('click', () => {
-  const familyName = document.getElementById('student-family-name').value.trim();
-  const givenName = document.getElementById('student-given-name').value.trim();
-  const sid = document.getElementById('student-id').value.trim();
-  if (!familyName) { alert('姓を入力してください'); return; }
-  if (!givenName) { alert('名を入力してください'); return; }
-  if (!sid) { alert('学籍番号を入力してください'); return; }
-  // 姓・名の間は常に全角スペース1つで統一する（半角/全角や有無のばらつきを防止）
-  const name = familyName + '\u3000' + givenName;
-  myName = name;
-  myStudentId = sid;
-  myKey = makeKey(name, sid);
-  sessionStorage.setItem('opinionapp_name', myName);
-  sessionStorage.setItem('opinionapp_sid', myStudentId);
-  sessionStorage.setItem('opinionapp_key', myKey);
-  els.loginCard.classList.add('hidden');
+function loadCurrentTheme() {
+  const user = auth.currentUser;
+  if (!user) return;
+  // メールアドレスをFirebaseキーとして使用（.#$[]/ → _ に変換）
+  myKey = user.email.replace(/[.#$\[\]/]/g, '_');
+  myName = user.displayName || user.email.split('@')[0];
+  myStudentId = user.email; // CSVでの識別用
+  // ログインカードを非表示にしてテーマを読み込む
+  if (els.loginCard) els.loginCard.classList.add('hidden');
   loadCurrentTheme();
-});
-
-function initApp() {
-  const savedKey = sessionStorage.getItem('opinionapp_key');
-  if (savedKey) {
-    myName = sessionStorage.getItem('opinionapp_name') || '';
-    myStudentId = sessionStorage.getItem('opinionapp_sid') || '';
-    myKey = savedKey;
-    els.loginCard.classList.add('hidden');
-    loadCurrentTheme();
-  }
 }
 
 function loadCurrentTheme() {
@@ -869,7 +826,7 @@ function adminExportThemeCSV(themeId, theme) {
     const csvPrefix = adminSanitizeFilename((theme.subject ? theme.subject + '_' : '') + theme.title);
     adminDownloadCSV(
       csvPrefix + '_意見一覧.csv',
-      adminToCSV(['学籍番号', '氏名', '意見内容', '提出日時'], opinionRows)
+      adminToCSV(['メールアドレス', '氏名', '意見内容', '提出日時'], opinionRows)
     );
 
     const commentRows = [];
@@ -891,7 +848,7 @@ function adminExportThemeCSV(themeId, theme) {
     setTimeout(() => {
       adminDownloadCSV(
         csvPrefix + '_コメント一覧.csv',
-        adminToCSV(['コメント記載者学籍番号', 'コメント記載者氏名', '対象学籍番号', '対象氏名', 'コメント内容', '提出日時'], commentRows)
+        adminToCSV(['コメント記載者メール', 'コメント記載者氏名', '対象メール', '対象氏名', 'コメント内容', '提出日時'], commentRows)
       );
     }, 300);
 
