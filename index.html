@@ -579,7 +579,8 @@ document.getElementById('submit-comments-btn').addEventListener('click', () => {
   }
   const btn = document.getElementById('submit-comments-btn');
   btn.disabled = true;
-  db.ref().update(updates).then(() => {
+  const writes = Object.keys(updates).map(k => db.ref(k).set(updates[k]));
+  Promise.all(writes).then(() => {
     els.commentCard.classList.add('hidden');
     showWaiting('コメントを提出しました。お疲れさまでした。');
   }).catch(err => {
@@ -730,11 +731,21 @@ function adminRunDistribution(themeId, theme, opinions) {
   updates[`themes/list/${themeId}/distributedAt`] = firebase.database.ServerValue.TIMESTAMP;
 
   document.getElementById('distribute-note').textContent = '配信を実行中…';
-  db.ref().update(updates).then(() => {
-    adminLog(`配信を実行しました（${n}人 × ${assignCount}件）。`);
-    adminLoadCurrentTheme();
-    adminLoadThemeList();
-  }).catch(err => alert('配信に失敗しました：' + err.message));
+
+  // db.ref().update()はルートへの書き込みが必要なためPERMISSION_DENIEDになる。
+  // assignmentsは個別に、themesのステータスは直接setする。
+  const assignmentWrites = Object.keys(updates)
+    .filter(k => k.startsWith('assignments/'))
+    .map(k => db.ref(k).set(updates[k]));
+
+  Promise.all(assignmentWrites)
+    .then(() => db.ref(`themes/list/${themeId}/status`).set('distributed'))
+    .then(() => db.ref(`themes/list/${themeId}/distributedAt`).set(firebase.database.ServerValue.TIMESTAMP))
+    .then(() => {
+      adminLog(`配信を実行しました（${n}人 × ${assignCount}件）。`);
+      adminLoadCurrentTheme();
+      adminLoadThemeList();
+    }).catch(err => alert('配信に失敗しました：' + err.message));
 }
 
 function adminLoadThemeList() {
@@ -795,13 +806,14 @@ function adminDeleteTheme(themeId, theme) {
   if (!confirm(`「${title}」を削除します。意見・コメントのデータもすべて削除され、元に戻せません。本当に削除しますか？`)) {
     return;
   }
-  const updates = {};
-  updates[`themes/list/${themeId}`] = null;
-  updates[`opinions/${themeId}`] = null;
-  updates[`assignments/${themeId}`] = null;
-  updates[`comments/${themeId}`] = null;
-
-  db.ref().update(updates).then(() => {
+  // db.ref().update()はルートへの書き込みが必要なためPERMISSION_DENIEDになる。
+  // 各パスを個別にremove()することで回避する。
+  Promise.all([
+    db.ref(`themes/list/${themeId}`).remove(),
+    db.ref(`opinions/${themeId}`).remove(),
+    db.ref(`assignments/${themeId}`).remove(),
+    db.ref(`comments/${themeId}`).remove(),
+  ]).then(() => {
     return db.ref('themes/current').once('value');
   }).then(snap => {
     if (snap.val() === themeId) {
